@@ -282,41 +282,35 @@ async function v2rayToSing(v2rayAccount) {
 }
 
 async function handleRequest(request) {
+  // Define your API Key and other constants at the start
+  const API_KEY = 'YOUR_API_KEY_HERE'; // Set your Telegram bot API key here
+  const welcomePhoto = "https://user-images.githubusercontent.com/101973571/243159445-957eba3e-bc2f-4d8d-ac36-b45bc56680e7.png";
+  const welcomeCaption = "Example";
+
   if (request.method === "POST") {
-    const payload = await request.json()
-    //console.log(payload)
-    // Getting the POST request JSON payload
+    const payload = await request.json();
+
     if ('message' in payload) {
-      const chatId = payload.message.chat.id
-      const inputUrl = payload.message.text
+      const chatId = payload.message.chat.id;
+      const inputUrl = payload.message.text;
+
       try {
         if (inputUrl === "/start") {
-          let textWelcome = "Send the v2ray config link here. If you are sure the config link is correct but you haven't received the config json, pm me [@iya_rivvikyn](https://t.me/iya_rivvikyn)"
-          let parseWelcome = "markdown"
-          const urlWelcome = `https://api.telegram.org/bot${API_KEY}/sendMessage?chat_id=${chatId}&text=${textWelcome}&parse_mode=${parseWelcome}`;
-          const sendWelcome = await fetch(urlWelcome).then(resp => resp.json());
-          let photoWelcome = "https://user-images.githubusercontent.com/101973571/243159445-957eba3e-bc2f-4d8d-ac36-b45bc56680e7.png"
-          let captionWelcome = "Example"
-          const urlPhotoWelcome = `https://api.telegram.org/bot${API_KEY}/sendPhoto?chat_id=${chatId}&photo=${photoWelcome}&caption=${captionWelcome}`;
-          const sendWelcomePhoto = await fetch(urlPhotoWelcome).then(resp => resp.json());
+          // Sending welcome message
+          const textWelcome = "Send the v2ray config link here. If you are sure the config link is correct but you haven't received the config json, pm me [@iya_rivvikyn](https://t.me/iya_rivvikyn)";
+          const urlWelcome = `https://api.telegram.org/bot${API_KEY}/sendMessage?chat_id=${chatId}&text=${textWelcome}&parse_mode=markdown`;
+          await fetch(urlWelcome);
+
+          const urlPhotoWelcome = `https://api.telegram.org/bot${API_KEY}/sendPhoto?chat_id=${chatId}&photo=${welcomePhoto}&caption=${welcomeCaption}`;
+          await fetch(urlPhotoWelcome);
         } else {
-          // Untuk penanganan server turu
-          /*
-        let pesan = "Server Problem, We'll be back. For more information, follow [@iyalog](https://t.me/iyalog)"
-        let parsu = "markdown"
-        const anjay = `https://api.telegram.org/bot${API_KEY}/sendMessage?chat_id=${chatId}&text=${pesan}&parse_mode=${parsu}`
-        const daital = await fetch(anjay).then(resp => resp.json());
-       */
+          // Main processing of V2Ray configuration
           let inputData = inputUrl.startsWith("http") ? await fetchUrlAllOrigin(inputUrl) : inputUrl;
-          //console.log("inputData:",inputData)
-          let cleanData = await processData(inputData)
-          //console.log(cleanData)
+          let cleanData = await processData(inputData);
           let parseConfig = await v2rayToSing(cleanData);
-          //console.log("parseConfig",parseConfig)
-          const outboundsConfig = parseConfig.map((item) => item);
-          outboundsConfig.forEach((item) => {
-            item.domain_strategy = "ipv4_only";
-          });
+
+          // Additional processing
+          const outboundsConfig = parseConfig.map((item) => ({ ...item, domain_strategy: "ipv4_only" }));
           let tagCount = {};
           let nameProxy = outboundsConfig.map((item) => {
             let tag = item.tag;
@@ -331,7 +325,8 @@ async function handleRequest(request) {
           outboundsConfig.forEach((item, index) => {
             item.tag = nameProxy[index];
           });
-          //console.log(outboundsConfig);
+
+          // Fetching additional configuration
           const urls = {
             sfa: "https://raw.githubusercontent.com/iyarivky/sing-ribet/main/config/config.json",
             sfaSimple: "https://raw.githubusercontent.com/iyarivky/sing-ribet/main/config/config-simple.json",
@@ -339,10 +334,13 @@ async function handleRequest(request) {
             bfmSimple: "https://raw.githubusercontent.com/iyarivky/sing-ribet/main/config/config-bfm-simple.json",
             nekobox: "https://raw.githubusercontent.com/iyarivky/sing-ribet/main/config/config-nekobox.json"
           };
+
           const configs = {};
           for (const [key, url] of Object.entries(urls)) {
             configs[key] = await fetchConfig(url);
           }
+
+          // Configuration names and tags
           const configNames = ["sfa", "sfaSimple", "bfm", "bfmSimple", "nekobox"];
           const tags = {
             sfa: ["Internet", "Best Latency", "Lock Region ID"],
@@ -351,6 +349,7 @@ async function handleRequest(request) {
             bfmSimple: ["Internet", "Best Latency"],
             nekobox: ["Internet", "Best Latency"]
           };
+
           const findIndexTag = {
             sfa: "Lock Region ID",
             sfaSimple: "Best Latency",
@@ -358,6 +357,8 @@ async function handleRequest(request) {
             bfmSimple: "Best Latency",
             nekobox: "Best Latency"
           };
+
+          // Update configurations with proxies
           for (const name of configNames) {
             const config = configs[name];
             config.outbounds.forEach((outbound) => {
@@ -365,54 +366,60 @@ async function handleRequest(request) {
                 outbound.outbounds.push(...nameProxy);
               }
             });
-            let addProxy = config.outbounds.findIndex(
-              (outbound) => outbound.tag === findIndexTag[name]);
-            config.outbounds.splice(addProxy + 1, 0, ...outboundsConfig);
 
-            const servers = config.outbounds.map(outbound => outbound.server).filter(server => server).filter(filterserver => !ipChecker(filterserver));
+            let addProxyIndex = config.outbounds.findIndex(outbound => outbound.tag === findIndexTag[name]);
+            config.outbounds.splice(addProxyIndex + 1, 0, ...outboundsConfig);
+
+            // Handle DNS rules
+            const servers = config.outbounds.map(outbound => outbound.server).filter(Boolean).filter(filterServer => !ipChecker(filterServer));
             const directDnsRule = config.dns.rules.find(rule => rule.server === "direct-dns");
             if (directDnsRule) {
               directDnsRule.domain_suffix = servers;
             }
-            if (servers.length === 0){
-              config.dns.rules = config.dns.rules.filter((rule) => rule.server !== "direct-dns");
+            if (servers.length === 0) {
+              config.dns.rules = config.dns.rules.filter(rule => rule.server !== "direct-dns");
             }
           }
+
+          // Send the final configuration files
           for (const name of configNames) {
-            let formattedConfig = JSON.stringify(configs[name], null, 2);
-            //console.log(formattedConfig);
-            var blob = new Blob([formattedConfig], {
-              type: 'plain/text'
-            });
+            const formattedConfig = JSON.stringify(configs[name], null, 2);
+            const blob = new Blob([formattedConfig], { type: 'application/json' });
+
             let date = new Date();
             let dateString = date.toLocaleDateString('id-ID').replace(/\//g, '-');
             let timeString = date.toLocaleTimeString('id-ID');
             let fileName = `${name}-${dateString}-${timeString}.json`;
-            var formData = new FormData();
+
+            const formData = new FormData();
             formData.append('chat_id', chatId);
             formData.append('document', blob, fileName);
-            const urel = `https://api.telegram.org/bot${API_KEY}/sendDocument`
-            const daita = await fetch(urel, {
+            
+            const urlSendDocument = `https://api.telegram.org/bot${API_KEY}/sendDocument`;
+            await fetch(urlSendDocument, {
               method: 'POST',
               body: formData
-            }).then(resp => resp.json());
+            });
           }
         }
       } catch (error) {
-        let parse = "markdown"
-        console.log('Error: ' + error.message);
-        let errorMesa = `Error: ${error.message}`
-        const errorUrl = `https://api.telegram.org/bot${API_KEY}/sendMessage?chat_id=${chatId}&text=${errorMesa}&parse_mode=${parse}`;
-        const daitaerror = await fetch(errorUrl).then(resp => resp.json());
-        let output = "If you are sure the config link is correct but you haven't received the config json, pm me [@iya_rivvikyn](https://t.me/iya_rivvikyn)"
-        const uerel = `https://api.telegram.org/bot${API_KEY}/sendMessage?chat_id=${chatId}&text=${output}&parse_mode=${parse}`;
-        const daital = await fetch(uerel).then(resp => resp.json());
-        let photo = "https://user-images.githubusercontent.com/101973571/243159445-957eba3e-bc2f-4d8d-ac36-b45bc56680e7.png"
-        let caption = "Example"
-        const uerela = `https://api.telegram.org/bot${API_KEY}/sendPhoto?chat_id=${chatId}&photo=${photo}&caption=${caption}`;
-        const daitala = await fetch(uerela).then(resp => resp.json());
+        // Error handling
+        const parseMode = "markdown";
+        console.log('Error:', error.message);
+
+        const errorMessage = `Error: ${error.message}`;
+        const errorUrl = `https://api.telegram.org/bot${API_KEY}/sendMessage?chat_id=${chatId}&text=${errorMessage}&parse_mode=${parseMode}`;
+        await fetch(errorUrl);
+
+        const output = "If you are sure the config link is correct but you haven't received the config json, pm me [@iya_rivvikyn](https://t.me/iya_rivvikyn)";
+        const userResponseUrl = `https://api.telegram.org/bot${API_KEY}/sendMessage?chat_id=${chatId}&text=${output}&parse_mode=${parseMode}`;
+        await fetch(userResponseUrl);
+
+        const errorPhotoUrl = `https://api.telegram.org/bot${API_KEY}/sendPhoto?chat_id=${chatId}&photo=${welcomePhoto}&caption=${welcomeCaption}`;
+        await fetch(errorPhotoUrl);
       }
     }
   }
-  return new Response("OK") // Doesn't really matter
+  return new Response("OK"); // Return OK response
 }
+
