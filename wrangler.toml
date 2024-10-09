@@ -1,0 +1,6 @@
+name = "sing-ribet-bot"
+type = "javascript"
+
+account_id = "99b822f32a6d04cecf8983182681a55f"
+workers_dev = true
+compatibility_date = "2024-10-09"  # Set to the current date or your deployment date
