@@ -15,7 +15,7 @@ async function fetchUrlAllOrigin(url) {
     "Content-Type": "application/json",
     "User-Agent": "Chrome/100"*/
   });
-  const response = await fetch(`https://cors.iyariv.workers.dev/?u=${url}`,
+  const response = await fetch(`https://cors.sonzaix.workers.dev/?url=${url}`,
     /*{
       headers: headers
     }*/
